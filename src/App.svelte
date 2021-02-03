@@ -1,31 +1,115 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import {slide} from 'svelte/transition';
+
+  // Copied items is the contents that we'll be displaying
+  let copiedItems: string[] = [];
+  // Buffer records last clipboard item
+  let buffer: string = '';
+
+  // Clipboard status describes our permission level on getting access to the clipboard
+  let clipboardStatus: PermissionStatus = {
+    state: 'denied',
+  } as PermissionStatus;
+  // Can we read the clipboard?
+  let canReadClipboard = false;
+
+  // If the clipboardStatus is granted, then we naturally can read clipboard
+  $: {
+    canReadClipboard = clipboardStatus.state == 'granted' ? true : false;
+  }
+  $: {
+    // If something changes so that we can read clipboard, start the process!
+    // Memory leak if someone disables read clipboard access then enables it, but we don't talk about that
+    // if (canReadClipboard) {
+    //   read();
+    // }
+  }
+
+  // Sets clipboard status by querying permissions
+  // Is run at the beginning of the program
+  const getClipboardStatus = async (): Promise<void> => {
+    const clipboardPermissionName: PermissionName = 'clipboard-write' as PermissionName;
+    clipboardStatus = await navigator.permissions.query({
+      name: clipboardPermissionName,
+    });
+  };
+
+  // Read cycle every 300ms.
+  const read = async () => {
+    // Always check to make sure we can read clipboard
+    if (canReadClipboard) {
+      // Read clipboard and store in buffer
+      try {
+        buffer = await navigator.clipboard.readText();
+        // If our last item is not identical,
+        if (copiedItems[copiedItems.length - 1] != buffer) {
+          // Update the buffer
+          copiedItems.push(buffer);
+          copiedItems = copiedItems;
+        }
+      } catch (e) {}
+      // Repeat
+      setTimeout(read, 300);
+    }
+  };
+
+  onMount(async () => {
+    // Initialize clipboard status();
+    await getClipboardStatus();
+    clipboardStatus.addEventListener('change', getClipboardStatus);
+
+    read();
+  });
 </script>
 
 <main>
-	<p>Lorem ipsum, dolor sit amet consectetur adipisicing elit. Harum, et asperiores. Rerum recusandae aut dolore, ex illum, distinctio, quis quia voluptatum veniam reprehenderit dolorum autem tempore veritatis nostrum mollitia optio!</p>
-	<p>Quo commodi odio voluptatibus. Accusantium amet quod, non porro aliquam delectus autem iste atque laboriosam, nesciunt quisquam iusto at ullam explicabo veniam optio neque necessitatibus sapiente. Commodi nobis maiores tempora?</p>
-	<p>Facere repellendus assumenda nam suscipit recusandae sequi dolore tempore perferendis veniam nostrum! Sequi est sit, cumque ipsam, accusamus et optio facilis nobis deserunt doloremque architecto maxime aut, unde quasi harum.</p>
-	<p>Aliquam, voluptates. Assumenda, atque neque quaerat eligendi magnam numquam recusandae minus cupiditate omnis! Recusandae nulla, quos nemo nobis quibusdam totam ipsa nostrum mollitia voluptas blanditiis, vitae et magnam voluptatibus incidunt?</p>
-	<p>Odio hic pariatur sequi adipisci. Mollitia dicta eum eligendi officia, eveniet ea nobis, laborum sit, eaque sunt nostrum saepe asperiores itaque quibusdam. Impedit fuga velit odit. Nemo commodi recusandae harum?</p>
-	<p>Est maxime illo vero corporis eligendi tenetur, temporibus quae sit consequatur mollitia omnis accusamus vel nisi ab quibusdam ut, dolor pariatur architecto dolorem suscipit ullam corrupti molestiae, veniam sequi! Possimus.</p>
-	<p>Quia optio quod distinctio minus ut eligendi repellendus totam, magni et perspiciatis consequatur doloribus sunt voluptates a culpa ipsa, dolorum beatae ex exercitationem. Rerum veritatis repellendus dolore cum. Culpa, aspernatur.</p>
-	<p>Aspernatur, magnam eum. Repellendus officiis ipsa vitae dolores nam necessitatibus et dignissimos sunt totam, quod ab dolore consequuntur inventore voluptate consequatur atque cum eius numquam voluptas. Quas veritatis alias debitis!</p>
-	<p>At error nesciunt impedit magnam soluta sequi dolore quae cumque dolor officiis enim maiores et dignissimos veniam laborum est itaque, exercitationem delectus debitis non amet? Dolores laudantium pariatur provident veniam?</p>
-	<p>Veritatis esse aliquid eligendi voluptas nemo explicabo magni? Exercitationem, quo. Cupiditate placeat voluptate aut quidem at rem iste quasi similique, nisi, deserunt possimus quod sequi nobis voluptatibus, obcaecati in dicta?</p>
+  {#if canReadClipboard}
+    <!-- Make sure clipboard hooks into `main`, as stated here! -->
+    <p>Clipboard Inserter</p>
+    {#each copiedItems as copiedItem}
+      <p transition:slide>{copiedItem}</p>
+    {/each}
+  {:else}
+    Please accept prompt to read clipboard
+  {/if}
 </main>
 
 <style lang="scss">
-	main {
-		scroll-snap-type: y mandatory;
-		height: 100vh;
-		overflow: scroll;
-	}
-	
-	p {
-		background-color: #2b2b2b;
-		color: white;
-		height: 100vh;
-		scroll-snap-align: center;
-	}
+  :global(body) {
+    margin: 0;
+    padding: 0;
+  }
+  main {
+    // Required
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
 
+    // Theme
+    background-color: hsl(226, 23%, 11%);
+    color: #bcbdd0;
+
+    // CSS scroll snap!
+    scroll-snap-type: y proximity;
+    overflow: auto;
+
+    // Display grid so we can get gap
+    display: grid;
+    gap: 1rem;
+
+    // Every `p` inside main
+    & > p {
+      // Required
+      margin: 0;
+      padding: 1rem;
+
+      // Theme
+      background-color: #282d3f;
+      color: #bcbdd0;
+
+      // Scroll snap at end, may change later
+      scroll-snap-align: end;
+    }
+  }
 </style>
